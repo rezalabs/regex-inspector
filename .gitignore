@@ -1,0 +1,16 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.pi/
+.biome/
+*.tgz
+
+# Environment
+.env
+.env.*
+
+# Editor
+.idea/
+.vscode/
+*.sublime-*

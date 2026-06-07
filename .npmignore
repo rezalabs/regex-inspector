@@ -1,0 +1,26 @@
+# Source files. We ship compiled dist/
+src/
+*.ts
+tsconfig.json
+
+# Tests
+test/
+test-*
+
+# Dev & CI
+node_modules/
+.pi/
+.github/
+coverage/
+*.tsbuildinfo
+*.tgz
+
+# Environment
+.env
+.env.*
+npm-debug.log*
+
+# Editor
+.idea/
+.vscode/
+*.sublime-*

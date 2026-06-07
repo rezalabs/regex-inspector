@@ -1,0 +1,18 @@
+{
+	"$schema": "https://unpkg.com/knip@5/schema.json",
+	"entry": ["src/index.ts"],
+	"project": ["src/**/*.ts"],
+	"ignoreDependencies": [],
+	"ignoreBinaries": [],
+	"rules": {
+		"binaries": "warn",
+		"dependencies": "error",
+		"devDependencies": "error",
+		"unlisted": "error",
+		"exports": "error",
+		"files": "error",
+		"nsExports": "error",
+		"nsTypes": "error",
+		"types": "error"
+	}
+}

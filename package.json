@@ -1,0 +1,78 @@
+{
+	"name": "regex-inspector",
+	"version": "1.0.1",
+	"description": "Parse, reconstruct, inspect, and fix JavaScript regular expressions with ReDoS detection, severity scoring, and auto-fix",
+	"private": false,
+	"license": "MIT",
+	"author": "RezaLabs",
+	"type": "module",
+	"main": "./dist/index.js",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"import": "./dist/index.js",
+			"types": "./dist/index.d.ts"
+		}
+	},
+	"files": [
+		"dist",
+		"bin",
+		"README.md"
+	],
+	"bin": {
+		"regex-inspector": "bin/regex-inspector.js"
+	},
+	"scripts": {
+		"build": "tsc",
+		"clean": "rm -rf dist",
+		"format": "biome format --write",
+		"knip": "knip --production --strict",
+		"lint": "biome check",
+		"lint:fix": "biome check --write --unsafe",
+		"prepublishOnly": "tsc",
+		"test": "tsx --test test/*.test.ts",
+		"test:watch": "node --test --watch"
+	},
+	"dependencies": {},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.15",
+		"@types/node": "^22.0.0",
+		"c8": "^11.0.0",
+		"knip": "^5.0.0",
+		"tsx": "^4.22.3",
+		"typescript": "^5.7.0"
+	},
+	"peerDependencies": {},
+	"optionalDependencies": {},
+	"engines": {
+		"node": ">=22"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"keywords": [
+		"ast",
+		"catastrophic-backtracking",
+		"inspect",
+		"parser",
+		"redos",
+		"regex",
+		"regexp",
+		"regular-expression",
+		"safe-regex",
+		"security",
+		"tokenizer"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/rezalabs/regex-inspector"
+	},
+	"bugs": {
+		"url": "https://github.com/rezalabs/regex-inspector/issues"
+	},
+	"homepage": "https://github.com/rezalabs/regex-inspector#readme",
+	"funding": "https://ko-fi.com/rezalabs",
+	"sideEffects": false,
+	"browserslist": []
+}
