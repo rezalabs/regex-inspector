@@ -7,8 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **CLI:** stderr hints after an unsafe quick check pointing to `--analyze`
+  and `--fix`; a stderr note when `--fix` output changes matching behavior;
+  the analysis reasons on stderr when a pattern cannot be auto-fixed; a
+  documented `--` separator for patterns that start with a dash.
+- **CLI:** the quick check now prints the top diagnostic reason on stderr
+  (in addition to the severity and hint), so an unsafe verdict is
+  self-explanatory without a separate `--analyze` run; this also surfaces
+  the "too complex to analyze" message for pathologically deep patterns.
+- **CLI test suite** (`test/cli.test.ts`): covers exit codes, stdout/stderr
+  stream discipline, argument validation, and error paths end to end.
+
+### Changed
+
+- **CLI:** `--analyze` now writes the JSON report to stdout and the
+  human-readable summary to stderr, so the report can be piped directly into
+  tools like `jq`.
+- **CLI:** `--fix` prints the original pattern when it is already safe,
+  making fix mode usable as a pass-through filter.
+- **CLI:** usage errors print a short usage hint to stderr instead of the
+  full help text to stdout; combining `--analyze` with `--fix` prints a note
+  that `--fix` is ignored.
+- **CLI:** the version is read from `package.json` only when `--version` is
+  requested, and a read failure produces a clear error instead of a crash.
+
 ### Fixed
 
+- **CLI:** `--analyze` now exits with code 1 for unsafe patterns, matching
+  the documented exit code contract (it previously always exited 0).
+- **CLI:** unknown options and unquoted dash-leading patterns no longer
+  crash with a raw stack trace; a concise error with a `--` tip is printed.
+- **CLI:** invalid regex patterns are reported as parse errors on stderr
+  instead of being labeled unsafe with severity `high` on stdout.
+- **CLI:** `--limit` rejects non-integer values such as `50abc`, `5.7`, and
+  `0` instead of silently truncating them.
 - **Library:** `inspect()` and `fix()` no longer mislabel or throw on
   syntactically valid but pathologically deep patterns that exceed the
   analyzer's recursion limit. They return a fail-closed result with a
