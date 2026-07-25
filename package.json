@@ -1,6 +1,6 @@
 {
 	"name": "regex-inspector",
-	"version": "1.0.1",
+	"version": "1.1.0",
 	"description": "Parse, reconstruct, inspect, and fix JavaScript regular expressions with ReDoS detection, severity scoring, and auto-fix",
 	"private": false,
 	"license": "MIT",

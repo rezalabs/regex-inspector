@@ -8,6 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+-
+
+### Changed
+-
+
+### Deprecated
+-
+
+### Removed
+-
+
+### Fixed
+-
+
+### Security
+-
+
+## [1.1.0] - 2026-07-25
+
+### Added
 
 - **CLI:** stderr hints after an unsafe quick check pointing to `--analyze`
   and `--fix`; a stderr note when `--fix` output changes matching behavior;
@@ -84,5 +104,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   convenience API, error paths, edge cases, and empirical V8 backtracking
   verification.
 
-[Unreleased]: https://github.com/rezalabs/regex-inspector/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/rezalabs/regex-inspector/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/rezalabs/regex-inspector/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/rezalabs/regex-inspector/releases/tag/v1.0.1
