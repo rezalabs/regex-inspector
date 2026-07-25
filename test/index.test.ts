@@ -371,3 +371,40 @@ describe("fix; RegExp input edge cases", () => {
 		assert.equal(result.fixed, "a+");
 	});
 });
+
+// ── inspect/fix: deep nesting resilience ───────────────────────────
+//
+// Syntactically valid but pathologically deep patterns can exceed the
+// analyzer's recursion limit. inspect() and fix() must degrade gracefully:
+// never throw, fail closed (safe: false), and never report a valid pattern
+// as "Invalid regex syntax".
+
+describe("inspect/fix; deep nesting resilience", () => {
+	// A depth well past the analyzer's recursion ceiling on standard stacks.
+	const deep = `${"(".repeat(5000)}a+${")".repeat(5000)}+`;
+
+	it("inspect() never throws on deeply nested valid patterns", () => {
+		// A throw here fails the test; const + direct call asserts no-throw.
+		const result = inspect(deep);
+		// Fail-closed whether analysis overflowed or found a real vulnerability.
+		assert.equal(result.safe, false);
+	});
+
+	it("inspect() does not mislabel deep nesting as invalid syntax", () => {
+		const result = inspect(deep);
+		// The pattern is valid syntax; the reason must never claim otherwise,
+		// whether analysis overflowed or simply reported a real vulnerability.
+		for (const reason of result.reasons) {
+			assert.ok(
+				!reason.includes("Invalid regex syntax"),
+				`valid pattern mislabelled as invalid syntax: ${reason}`,
+			);
+		}
+	});
+
+	it("fix() never throws on deeply nested valid patterns", () => {
+		const result = fix(deep);
+		assert.equal(result.safe, false);
+		assert.equal(result.fixed, null);
+	});
+});

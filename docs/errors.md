@@ -74,6 +74,31 @@ fix('[invalid');
 // { safe: false, fixed: null, original: '[invalid', semanticChange: false }
 ```
 
+### Analysis failures (patterns too complex to analyze)
+
+`inspect()` and `fix()` also never throw when a pattern is syntactically
+valid but too complex to analyze, such as a pattern with thousands of nested
+groups that exceeds the analyzer's recursion limit. These produce a fail-closed
+result with a distinct reason so the input is never confused with invalid
+syntax:
+
+```js
+import { inspect } from 'regex-inspector';
+
+inspect('(' + 'a+'.repeat(1) /* deeply nested */ + ')'); // pathologically deep
+// {
+//   safe: false,
+//   severity: 'high',
+//   reasons: ['Pattern too complex to analyze reliably (exceeded recursion depth); simplify deeply nested groups or quantifiers'],
+//   ...
+//   fix: null
+// }
+```
+
+The result is always fail-closed (`safe: false`): a pattern that cannot be
+proven safe is treated as unsafe. `fix()` returns `fixed: null` in this case;
+call `inspect()` to obtain the diagnostic reason.
+
 ### `generate()`
 
 Throws `Error` if the AST contains unknown token or set member kinds. This

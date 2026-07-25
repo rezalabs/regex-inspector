@@ -73,10 +73,36 @@ function coerceToString(input: unknown): string {
 }
 
 /**
+ * Classifies a caught error into a human-readable reason string.
+ *
+ * Parse errors (SyntaxError, including the parser's ParseError subclass)
+ * describe invalid input. RangeError indicates the analysis exceeded the
+ * recursion limit on a syntactically valid but pathologically deep pattern.
+ * Anything else is an unexpected internal failure. Each gets a distinct,
+ * honest message so callers are never told their syntax is invalid when it
+ * is not.
+ */
+function describeFailure(err: unknown): string {
+	const e = err as Error;
+	if (e instanceof RangeError) {
+		return "Pattern too complex to analyze reliably (exceeded recursion depth); simplify deeply nested groups or quantifiers";
+	}
+	if (e instanceof SyntaxError) {
+		return `Invalid regex syntax: ${e.message}`;
+	}
+	return `Analysis failed: ${e.message}`;
+}
+
+/**
  * Parses a regex pattern and returns a full ReDoS analysis including
  * severity level, reasons, and a suggested fix if unsafe.
  *
  * Accepts strings, RegExp objects, or any value coercible to string.
+ *
+ * Never throws: invalid syntax, patterns too complex to analyze, and
+ * unexpected errors all produce a structured result. The result is
+ * fail-closed (safe: false, severity: "high") because a pattern that
+ * cannot be proven safe must be treated as unsafe.
  */
 export function inspect(
 	pattern: string | RegExp | unknown,
@@ -99,7 +125,7 @@ export function inspect(
 		return {
 			safe: false,
 			severity: "high",
-			reasons: [`Invalid regex syntax: ${(err as Error).message}`],
+			reasons: [describeFailure(err)],
 			starHeight: 0,
 			repCount: 0,
 			hasAlternationReDoS: false,
@@ -115,11 +141,24 @@ export function inspect(
  * Attempts to automatically fix a ReDoS-vulnerable regex pattern.
  *
  * Accepts strings, RegExp objects, or any value coercible to string.
+ *
+ * Never throws, mirroring inspect(): a pattern too complex to fix (or any
+ * unexpected failure) yields a fail-closed result with no fix. Call inspect()
+ * to obtain the diagnostic reasons when fixed is null.
  */
 export function fix(
 	pattern: string | RegExp | unknown,
 	opts?: FixOptions,
 ): FixResult {
 	const source = coerceToString(pattern);
-	return fixImpl(source, opts);
+	try {
+		return fixImpl(source, opts);
+	} catch {
+		return {
+			safe: false,
+			fixed: null,
+			original: source,
+			semanticChange: false,
+		};
+	}
 }

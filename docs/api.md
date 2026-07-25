@@ -95,6 +95,12 @@ inspect('[invalid');
 // }
 ```
 
+`inspect()` never throws. Patterns that are valid but too complex to
+analyze (for example, thousands of nested groups that exceed the analyzer's
+recursion limit) also return a structured, fail-closed result with a distinct
+reason (never reported as invalid syntax). See
+[Error Handling](./errors.md#analysis-failures-patterns-too-complex-to-analyze).
+
 ---
 
 ## `fix(pattern, opts?)` → `FixResult`
@@ -113,6 +119,10 @@ fix('(a|aa|aaa)+');
 fix('^[a-z]+$');
 // → { safe: true, fixed: null, original: '^[a-z]+$', semanticChange: false }
 ```
+
+Like `inspect()`, `fix()` never throws: invalid input and patterns too complex
+to fix both yield a fail-closed result (`fixed: null`). Call `inspect()` to
+obtain the diagnostic reasons when `fixed` is `null`.
 
 **Parameters:**
 - `pattern` (`string | RegExp | unknown`): The regex to fix.

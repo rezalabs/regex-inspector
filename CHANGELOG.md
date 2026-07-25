@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Library:** `inspect()` and `fix()` no longer mislabel or throw on
+  syntactically valid but pathologically deep patterns that exceed the
+  analyzer's recursion limit. They return a fail-closed result with a
+  distinct "too complex to analyze" reason, and `fix()` now never throws,
+  matching `inspect()`'s never-throw contract.
+
 ## [1.0.1] - 2026-06-07
 
 ### Added
