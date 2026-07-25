@@ -43,6 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   instead of being labeled unsafe with severity `high` on stdout.
 - **CLI:** `--limit` rejects non-integer values such as `50abc`, `5.7`, and
   `0` instead of silently truncating them.
+- **Docs:** corrected the quick-check severity for `(a+)+` in the README
+  (`high`, not `critical`) and the `inspect()` parse-error `reasons` example
+  in `docs/errors.md` to match the actual message text.
 - **Library:** `inspect()` and `fix()` no longer mislabel or throw on
   syntactically valid but pathologically deep patterns that exceed the
   analyzer's recursion limit. They return a fail-closed result with a

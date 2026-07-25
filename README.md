@@ -62,7 +62,7 @@ fix('(a+)+');
 
 ```sh
 # Quick safety check (exit code)
-npx regex-inspector '(a+)+'           # => critical (exit 1)
+npx regex-inspector '(a+)+'           # => high (exit 1)
 npx regex-inspector '^[a-z]+$'       # => safe (exit 0)
 
 # Detailed analysis

@@ -56,7 +56,7 @@ inspect('[invalid');
 // {
 //   safe: false,
 //   severity: 'high',
-//   reasons: ['Invalid regex syntax: Unterminated character class'],
+//   reasons: ['Invalid regex syntax: Invalid regular expression: /[invalid/: Unterminated character class'],
 //   starHeight: 0,
 //   repCount: 0,
 //   hasAlternationReDoS: false,
