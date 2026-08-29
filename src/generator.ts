@@ -9,15 +9,21 @@ import {
 
 // ── Character escaping ────────────────────────────────────────────────────
 
+// Code points that must be escaped inside a character class, and why.
+const CARET = 0x5e; // ^ would start a negated class
+const BACKSLASH = 0x5c; // \ would start an escape sequence
+const RBRACKET = 0x5d; // ] would close the class
+const HYPHEN = 0x2d; // - would denote a range
+
 /**
  * Returns the string representation of a code point for use inside a
  * character class, escaping ^, \, ], and - as needed.
  */
 function setChar(cp: number): string {
-	if (cp === 94) return "\\^";
-	if (cp === 92) return "\\\\";
-	if (cp === 93) return "\\]";
-	if (cp === 45) return "\\-";
+	if (cp === CARET) return "\\^";
+	if (cp === BACKSLASH) return "\\\\";
+	if (cp === RBRACKET) return "\\]";
+	if (cp === HYPHEN) return "\\-";
 	return String.fromCodePoint(cp);
 }
 
@@ -55,7 +61,7 @@ function matchesLookup(members: SetMember[], lookup: SetLookup): boolean {
 
 // ── Set member rendering ──────────────────────────────────────────────────
 
-function renderSetMember(m: SetMember, _nested: boolean): string {
+function renderSetMember(m: SetMember, nested: boolean): string {
 	switch (m.kind) {
 		case "char":
 			return setChar(m.value);
@@ -64,7 +70,7 @@ function renderSetMember(m: SetMember, _nested: boolean): string {
 		case "unicode_property":
 			return `\\${m.negated ? "P" : "p"}{${m.property}}`;
 		case "charset":
-			return renderCharSet(m, _nested);
+			return renderCharSet(m, nested);
 		case "string_member": {
 			if (m.strings.length === 0) return "";
 			const parts = m.strings.map((s) =>

@@ -1,4 +1,4 @@
-import { analyze } from "./analyze.js";
+import { analyze, DEFAULT_REPETITION_LIMIT } from "./analyze.js";
 import type { GroupNode, Node, RepetitionNode, Token } from "./ast.js";
 import { generate } from "./generator.js";
 import { tokenize } from "./parser.js";
@@ -19,8 +19,8 @@ export type FixOptions = {
 // ── AST utilities ─────────────────────────────────────────────────────────
 
 function cloneNode<T extends Node | Token>(node: T): T {
-	return JSON.parse(JSON.stringify(node), (_key, value) => {
-		if (value === null && _key === "max") return Infinity;
+	return JSON.parse(JSON.stringify(node), (key, value) => {
+		if (value === null && key === "max") return Infinity;
 		return value;
 	}) as T;
 }
@@ -100,25 +100,25 @@ function findGroupWithAlternatives(node: Token): GroupNode | null {
 
 // ── Recursive fixer ───────────────────────────────────────────────────────
 
-function fixNode(node: Token, limit: number): Token {
+function fixNode(node: Token): Token {
 	if (node.kind === "repetition") {
 		// Strip outer quantifier if nested repetition detected
 		if (hasDeepRepetition(node.child, 1, 1)) {
-			return fixNode(node.child, limit);
+			return fixNode(node.child);
 		}
 		// Collapse same-character alternatives
 		const altFix = fixAlternationReDoS(node);
 		if (altFix) return altFix;
 
 		const result = cloneNode(node);
-		result.child = fixNode(result.child, limit);
+		result.child = fixNode(result.child);
 		return result;
 	}
 
 	if (node.kind === "group") {
 		const result = cloneNode(node);
 		result.branches = result.branches.map((branch) =>
-			branch.map((child) => fixNode(child, limit)),
+			branch.map((child) => fixNode(child)),
 		);
 		return result;
 	}
@@ -132,7 +132,7 @@ export function fixRegex(
 	pattern: string | Node,
 	opts: FixOptions = {},
 ): FixResult {
-	const limit = opts.limit ?? 25;
+	const limit = opts.limit ?? DEFAULT_REPETITION_LIMIT;
 	const source = typeof pattern === "string" ? pattern : generate(pattern);
 
 	let ast: Node;
@@ -160,7 +160,7 @@ export function fixRegex(
 	const fixedAst = cloneNode(ast);
 	if (fixedAst.kind === "root") {
 		fixedAst.branches = fixedAst.branches.map((branch) =>
-			branch.map((child) => fixNode(child, limit)),
+			branch.map((child) => fixNode(child)),
 		);
 	}
 

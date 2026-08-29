@@ -11,6 +11,7 @@ import { digits, dot, whitespace, wordChars } from "./preset.js";
 // ── Constants ─────────────────────────────────────────────────────────────
 
 const MAX_PATTERN_LENGTH = 100_000;
+const HYPHEN = 45; // '-' code point
 const CAPTURE_NAME_FIRST = /^[a-zA-Z_$]$/;
 const CAPTURE_NAME_CHAR = /^[a-zA-Z0-9_$]$/;
 const OCTAL_DIGIT = /^[0-7]$/;
@@ -36,6 +37,8 @@ function resolveEscapes(source: string): string {
 	const escRe =
 		/(\[\\b\])|(\\)?\\(?:u\{([A-Fa-f0-9]{1,6})\}|u([A-Fa-f0-9]{4})|x([A-Fa-f0-9]{2})|c([\s\S])|(0(?!\d)|[tnvfr]))/g;
 	const ctrlTable: Record<string, number> = {
+	// Group 1 matches `[\b]`, a class containing only \b (backspace inside
+	// a character class), which normalizes to the bare backspace character.
 		"@": 0,
 		A: 1,
 		B: 2,
@@ -80,9 +83,9 @@ function resolveEscapes(source: string): string {
 
 	return source.replace(
 		escRe,
-		(match, _bs, literalBackslash, ubrace, u4, x2, ctrl, simple) => {
+		(match, classBackspace, literalBackslash, ubrace, u4, x2, ctrl, simple) => {
 			if (literalBackslash) return match;
-			if (_bs) return "\u0008";
+			if (classBackspace) return "\u0008";
 
 			let code: number;
 			if (ubrace) {
@@ -260,7 +263,7 @@ export function tokenize(pattern: string): RootNode {
 				flushPending();
 				if (hadPendingRange) {
 					// Trailing dash before ]: literal hyphen
-					members.push({ kind: "char", value: 45 });
+					members.push({ kind: "char", value: HYPHEN });
 				}
 				break;
 			}
@@ -293,7 +296,7 @@ export function tokenize(pattern: string): RootNode {
 						flushPending();
 						rangeStart = code;
 					}
-					if (code === 45) prevWasEscapedDash = true;
+					if (code === HYPHEN) prevWasEscapedDash = true;
 				};
 
 				switch (esc) {
@@ -379,7 +382,7 @@ export function tokenize(pattern: string): RootNode {
 					if (rangeStart !== null) {
 						awaitingRangeEnd = true;
 					} else {
-						members.push({ kind: "char", value: 45 });
+						members.push({ kind: "char", value: HYPHEN });
 					}
 					continue;
 				}
@@ -404,7 +407,7 @@ export function tokenize(pattern: string): RootNode {
 				if (rangeStart !== null) {
 					awaitingRangeEnd = true;
 				} else {
-					members.push({ kind: "char", value: 45 });
+					members.push({ kind: "char", value: HYPHEN });
 				}
 				continue;
 			}
@@ -496,6 +499,15 @@ export function tokenize(pattern: string): RootNode {
 		}
 		return { min, max };
 	}
+	/** Consumes a trailing `?` that marks the preceding quantifier as lazy. */
+	function consumeLazyFlag(): boolean {
+		if (!atEnd() && peek() === "?") {
+			advance();
+			return false;
+		}
+		return true;
+	}
+
 
 	function applyQuantifier(min: number, max: number, column: number): void {
 		const branch = currentBranch();
@@ -503,11 +515,7 @@ export function tokenize(pattern: string): RootNode {
 			throw new ParseError(pattern, "Nothing to repeat", column);
 		}
 		const child = branch.pop()!;
-		let greedy = true;
-		if (!atEnd() && peek() === "?") {
-			greedy = false;
-			advance();
-		}
+		const greedy = consumeLazyFlag();
 		branch.push({ kind: "repetition", min, max, greedy, child });
 	}
 
@@ -598,9 +606,9 @@ export function tokenize(pattern: string): RootNode {
 								}
 								branch.push({ kind: "char", value: parseInt(octal, 8) });
 							} else {
-								let digits = esc;
-								while (!atEnd() && DIGIT.test(peek()!)) digits += advance();
-								const value = parseInt(digits, 10);
+								let digitsStr = esc;
+								while (!atEnd() && DIGIT.test(peek()!)) digitsStr += advance();
+								const value = parseInt(digitsStr, 10);
 								const ref: BackreferenceNode = {
 									kind: "backreference",
 									index: value,
@@ -670,12 +678,6 @@ export function tokenize(pattern: string): RootNode {
 							name += advance();
 							while (!atEnd() && CAPTURE_NAME_CHAR.test(peek()!))
 								name += advance();
-							if (name.length === 0)
-								throw new ParseError(
-									pattern,
-									"Invalid capture group name",
-									pos,
-								);
 							if (atEnd() || peek() !== ">") {
 								throw new ParseError(
 									pattern,
@@ -744,11 +746,7 @@ export function tokenize(pattern: string): RootNode {
 					throw new ParseError(pattern, "Nothing to repeat", col);
 				} else {
 					const child = branch.pop()!;
-					let greedy = true;
-					if (!atEnd() && peek() === "?") {
-						greedy = false;
-						advance();
-					}
+					const greedy = consumeLazyFlag();
 					branch.push({ kind: "repetition", min: 0, max: 1, greedy, child });
 				}
 				break;
@@ -761,11 +759,7 @@ export function tokenize(pattern: string): RootNode {
 				if (prev.kind === "repetition")
 					throw new ParseError(pattern, "Nothing to repeat", col);
 				const child = branch.pop()!;
-				let greedy = true;
-				if (!atEnd() && peek() === "?") {
-					greedy = false;
-					advance();
-				}
+				const greedy = consumeLazyFlag();
 				branch.push({
 					kind: "repetition",
 					min: 0,
@@ -783,11 +777,7 @@ export function tokenize(pattern: string): RootNode {
 				if (prev.kind === "repetition")
 					throw new ParseError(pattern, "Nothing to repeat", col);
 				const child = branch.pop()!;
-				let greedy = true;
-				if (!atEnd() && peek() === "?") {
-					greedy = false;
-					advance();
-				}
+				const greedy = consumeLazyFlag();
 				branch.push({
 					kind: "repetition",
 					min: 1,
@@ -810,24 +800,30 @@ export function tokenize(pattern: string): RootNode {
 	// Resolve numeric backreferences
 	for (const { node, branch, index } of backrefs.reverse()) {
 		if (groupCount < node.index) {
-			const digits = String(node.index);
-			if (!/^[0-7]+$/.test(digits)) {
+			const indexDigits = String(node.index);
+			if (!/^[0-7]+$/.test(indexDigits)) {
 				let i = 0;
-				while (i < digits.length && OCTAL_DIGIT.test(digits[i]!)) i++;
+				while (i < indexDigits.length && OCTAL_DIGIT.test(indexDigits[i]!)) i++;
 				const headLen = i;
 				const replacement: Token[] = [];
 				if (headLen > 0) {
 					replacement.push({
 						kind: "char",
-						value: parseInt(digits.slice(0, headLen), 8),
+						value: parseInt(indexDigits.slice(0, headLen), 8),
 					});
 				}
-				for (let j = headLen; j < digits.length; j++) {
-					replacement.push({ kind: "char", value: digits.charCodeAt(j) });
+				for (let j = headLen; j < indexDigits.length; j++) {
+					replacement.push({
+						kind: "char",
+						value: indexDigits.charCodeAt(j),
+					});
 				}
 				branch.splice(index, 1, ...replacement);
 			} else {
-				branch[index] = { kind: "char", value: parseInt(digits, 8) };
+				branch[index] = {
+					kind: "char",
+					value: parseInt(indexDigits, 8),
+				};
 			}
 		}
 	}

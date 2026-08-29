@@ -27,6 +27,12 @@ export type AnalyzeOptions = {
 	limit?: number;
 };
 
+/**
+ * Default value for AnalyzeOptions.limit: the maximum number of
+ * repetitions a pattern may contain before it is flagged.
+ */
+export const DEFAULT_REPETITION_LIMIT = 25;
+
 // ── Token leaf extraction ─────────────────────────────────────────────────
 
 function getFirstLeaf(node: Token): Token | null {
@@ -325,7 +331,7 @@ function findAlternationReDoS(node: Token | Node): boolean {
 	const n = node as Node;
 	if (n.kind === "group" && hasAlternationReDoS(n.branches)) return true;
 	if (n.kind === "root" || n.kind === "group") {
-		const branches = n.kind === "root" ? n.branches : n.branches;
+		const branches = n.branches;
 		for (const branch of branches) {
 			for (const child of branch) {
 				if (findAlternationReDoS(child)) return true;
@@ -419,13 +425,13 @@ function findSequentialOverlap(
 	}
 
 	if (node.kind === "root" || node.kind === "group") {
-		const branches = node.kind === "root" ? node.branches : node.branches;
-		for (const branch of branches) {
+		for (const branch of node.branches) {
 			let dangerCount = 0;
 			for (let i = 0; i < branch.length - 1; i++) {
 				if (hasDangerAdjacency(branch[i]!, branch[i + 1]!)) {
 					dangerCount++;
-					if (insideRepetition && dangerCount >= 1) return true;
+					// dangerCount is always >= 1 here (just incremented above)
+					if (insideRepetition) return true;
 					if (dangerCount >= 2) return true;
 				}
 			}
@@ -456,9 +462,9 @@ function detectAnchored(root: Node): boolean {
 	const last = stack[stack.length - 1]!;
 	return (
 		first.kind === "position" &&
-		(first as { value: string }).value === "^" &&
+		first.value === "^" &&
 		last.kind === "position" &&
-		(last as { value: string }).value === "$"
+		last.value === "$"
 	);
 }
 
@@ -495,8 +501,7 @@ function suffixIsExclusive(node: Token | Node, suffix: Token): boolean {
 		return suffixIsExclusive(node.child, suffix);
 	}
 	if (node.kind === "root" || node.kind === "group") {
-		const branches = node.kind === "root" ? node.branches : node.branches;
-		for (const branch of branches) {
+		for (const branch of node.branches) {
 			for (const child of branch) {
 				if (!suffixIsExclusive(child, suffix)) return false;
 			}
@@ -540,9 +545,7 @@ function walkAnalyze(node: Token | Node, state: WalkState): void {
 		return;
 	}
 
-	if (node.kind === "root") {
-		walkBranches(node.branches, (child) => walkAnalyze(child, state));
-	} else if (node.kind === "group") {
+	if (node.kind === "root" || node.kind === "group") {
 		walkBranches(node.branches, (child) => walkAnalyze(child, state));
 	}
 }
@@ -552,30 +555,26 @@ function walkSafe(node: Token | Node, state: WalkState): boolean {
 		state.starHeight++;
 		state.repCount++;
 
-		if (state.starHeight > 1 && !isUnambiguous(node.child)) return false;
+		// isUnambiguous is pure; compute once instead of up to three times.
+		const unambiguous = isUnambiguous(node.child);
+		if (state.starHeight > 1 && !unambiguous) return false;
 		if (state.repCount > state.limit) return false;
 
 		if (findAlternationReDoS(node.child)) return false;
 
 		const savedHeight = state.starHeight;
-		if (isUnambiguous(node.child)) {
+		if (unambiguous) {
 			state.starHeight = 0;
 		}
 		const result = walkSafe(node.child, state);
-		if (isUnambiguous(node.child)) {
+		if (unambiguous) {
 			state.starHeight = savedHeight;
 		}
 		state.starHeight--;
 		return result;
 	}
 
-	if (node.kind === "root") {
-		for (const branch of node.branches) {
-			for (const child of branch) {
-				if (!walkSafe(child, state)) return false;
-			}
-		}
-	} else if (node.kind === "group") {
+	if (node.kind === "root" || node.kind === "group") {
 		for (const branch of node.branches) {
 			for (const child of branch) {
 				if (!walkSafe(child, state)) return false;
@@ -610,7 +609,7 @@ function assessSeverity(
 // ── Public API ────────────────────────────────────────────────────────────
 
 export function analyze(ast: Node, opts: AnalyzeOptions = {}): AnalysisResult {
-	const limit = opts.limit ?? 25;
+	const limit = opts.limit ?? DEFAULT_REPETITION_LIMIT;
 
 	const state: WalkState = {
 		starHeight: 0,
@@ -645,11 +644,9 @@ export function analyze(ast: Node, opts: AnalyzeOptions = {}): AnalysisResult {
 	const safe = walkSafeResult && !hasSeqOverlap;
 
 	const reasons: string[] = [];
-	let finalSeverity: Severity = "none";
+	const finalSeverity: Severity = safe ? "none" : severity;
 
 	if (!safe) {
-		finalSeverity = severity;
-
 		if (state.maxStarHeight >= 2) {
 			reasons.push(
 				`Nested repetition detected (star height ${state.maxStarHeight})`,
