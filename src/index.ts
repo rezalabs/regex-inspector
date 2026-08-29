@@ -83,14 +83,16 @@ function coerceToString(input: unknown): string {
  * is not.
  */
 function describeFailure(err: unknown): string {
-	const e = err as Error;
-	if (e instanceof RangeError) {
+	if (err instanceof RangeError) {
 		return "Pattern too complex to analyze reliably (exceeded recursion depth); simplify deeply nested groups or quantifiers";
 	}
-	if (e instanceof SyntaxError) {
-		return `Invalid regex syntax: ${e.message}`;
+	if (err instanceof SyntaxError) {
+		return `Invalid regex syntax: ${err.message}`;
 	}
-	return `Analysis failed: ${e.message}`;
+	if (err instanceof Error) {
+		return `Analysis failed: ${err.message}`;
+	}
+	return `Analysis failed: ${String(err)}`;
 }
 
 /**
@@ -150,10 +152,14 @@ export function fix(
 	pattern: string | RegExp | unknown,
 	opts?: FixOptions,
 ): FixResult {
-	const source = coerceToString(pattern);
+	let source = "";
 	try {
+		source = coerceToString(pattern);
 		return fixImpl(source, opts);
 	} catch {
+		// Coercion runs inside the try so a throwing toString() cannot escape
+		// the never-throws contract documented above; `original` stays
+		// best-effort (empty when coercion itself failed).
 		return {
 			safe: false,
 			fixed: null,

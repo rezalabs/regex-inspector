@@ -20,7 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 -
 
 ### Fixed
--
+
+- **`fix()`:** keep input coercion inside the never-throws `try` block so an
+  input whose `toString()` throws returns the documented fail-closed result
+  instead of propagating the error.
 
 ### Security
 -
