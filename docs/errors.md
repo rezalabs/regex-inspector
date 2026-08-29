@@ -20,6 +20,10 @@ position information.
 | Invalid group name in backreference | `\k<nonexistent>` | `\k<name>` with no matching group |
 | `\` at end of pattern | `foo\` | Backslash with nothing after |
 | Invalid Unicode escape | `\u{110000}` | Code point > 0x10FFFF |
+| Unterminated `\p{...}` escape | `\p{L` | Property escape missing `}` |
+| Unterminated `\q{...}` escape | `[\q{abc` | v-mode string escape missing `}` |
+| Unterminated `\k<...>` reference | `(?<a>.)\k<a` | Named backreference missing `>` |
+| Invalid set operation | `[--a]`, `[a--]`, `[a&&--b]` | `--`/`&&` without two operands |
 | Pattern too large | > 100,000 characters | Memory protection |
 
 All parse errors are instances of `SyntaxError` with a descriptive message:

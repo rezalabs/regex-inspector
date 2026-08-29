@@ -21,6 +21,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Parser:** parse `\q` inside a character class without a following `{` as
+  an identity escape (literal `q`, matching plain-mode JavaScript) instead of
+  silently dropping it from the class.
+- **Parser:** reject unterminated `\p{...}`, `\q{...}`, and `\k<...>` escapes
+  with `SyntaxError` instead of silently accepting them; notably
+  `(?<foo>a)\k<foo` used to parse as a valid backreference.
+- **Parser:** reject malformed v-mode set operations (`[--a]`, `[a--]`,
+  `[a&&]`, `[a&&--b]`, `[a--&&b]`) with `SyntaxError`; they previously built
+  corrupt ASTs or silently dropped the operator.
 - **`fix()`:** keep input coercion inside the never-throws `try` block so an
   input whose `toString()` throws returns the documented fail-closed result
   instead of propagating the error.

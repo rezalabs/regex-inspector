@@ -29,16 +29,19 @@ class ParseError extends SyntaxError {
 	}
 }
 
+/** Internal marker pushed by the class lexer for `--` / `&&` operators. */
+type OpSentinel = { _op: "subtract" | "intersect" };
+
 // ── Escape resolution ─────────────────────────────────────────────────────
 
 function resolveEscapes(source: string): string {
 	// Matches any character after \c -- V8 accepts any code unit;
 	// the control code is codepoint % 32.
+	// Group 1 matches `[\b]`, a class containing only \b (backspace inside
+	// a character class), which normalizes to the bare backspace character.
 	const escRe =
 		/(\[\\b\])|(\\)?\\(?:u\{([A-Fa-f0-9]{1,6})\}|u([A-Fa-f0-9]{4})|x([A-Fa-f0-9]{2})|c([\s\S])|(0(?!\d)|[tnvfr]))/g;
 	const ctrlTable: Record<string, number> = {
-	// Group 1 matches `[\b]`, a class containing only \b (backspace inside
-	// a character class), which normalizes to the bare backspace character.
 		"@": 0,
 		A: 1,
 		B: 2,
@@ -165,64 +168,52 @@ export function tokenize(pattern: string): RootNode {
 	 * (intersect) operators and builds the set op tree.
 	 * && binds tighter than --; both are left-associative.
 	 */
-	function buildSetOpTree(members: SetMember[]): SetMember[] {
-		// Phase 1: detect operator sentinels pushed by the lexer.
-		// Operators have shape { _op: "subtract" | "intersect" }.
-		type OpSentinel = { _op: "subtract" | "intersect" };
-		const items: (SetMember | OpSentinel)[] = [];
-		for (const m of members) {
-			if ((m as any)._op) {
-				items.push(m as any as OpSentinel);
-			} else {
-				items.push(m);
-			}
-		}
-
-		// Phase 2: build tree. && binds tighter → group && first.
-		return buildOps(items, "intersect");
+	function buildSetOpTree(members: (SetMember | OpSentinel)[]): SetMember[] {
+		// && binds tighter → group && first.
+		return buildOps(members, "intersect");
 	}
 
 	function isOp(
-		item: SetMember | { _op: "subtract" | "intersect" },
+		item: SetMember | OpSentinel,
 		op: "subtract" | "intersect",
-	): item is { _op: "subtract" | "intersect" } {
-		return (item as any)._op === op;
+	): item is OpSentinel {
+		// Sentinels are the only entries without a `kind` discriminant.
+		return !("kind" in item) && item._op === op;
 	}
 
 	/** Left-associative grouping of `items` by `op`. */
 	function buildOps(
-		items: (SetMember | { _op: "subtract" | "intersect" })[],
+		items: (SetMember | OpSentinel)[],
 		op: "subtract" | "intersect",
 	): SetMember[] {
 		// First pass: combine with the given operator
-		const result: (SetMember | { _op: "subtract" | "intersect" })[] = [];
+		const result: (SetMember | OpSentinel)[] = [];
 		let i = 0;
 		while (i < items.length) {
 			const item = items[i]!;
 			if (isOp(item, op)) {
-				const left = result.pop()!;
-				i++;
-				if (i >= items.length) {
-					result.push(left as SetMember);
-					break;
-				}
-				const right = items[i]!;
-				if (isOp(right, "subtract") || isOp(right, "intersect")) {
-					result.push(left as SetMember);
-					result.push(right);
-				} else {
-					result.push({
-						kind: "set_op",
-						operator: op,
-						left: left as SetMember,
-						right: right as SetMember,
-					});
+				// An operator must sit between two real members; leading,
+				// trailing, or adjacent operators are malformed.
+				const left = result.pop();
+				if (!left || isOp(left, "subtract") || isOp(left, "intersect")) {
+					throw new ParseError(
+						pattern,
+						"Invalid set operation in character class",
+					);
 				}
 				i++;
+				const right = items[i];
+				if (!right || isOp(right, "subtract") || isOp(right, "intersect")) {
+					throw new ParseError(
+						pattern,
+						"Invalid set operation in character class",
+					);
+				}
+				result.push({ kind: "set_op", operator: op, left, right });
 			} else {
 				result.push(item);
-				i++;
 			}
+			i++;
 		}
 
 		// If we just handled intersects, now handle subtracts (lower precedence)
@@ -230,6 +221,7 @@ export function tokenize(pattern: string): RootNode {
 			return buildOps(result, "subtract");
 		}
 
+		// Both passes above consume every sentinel into a set_op node.
 		return result as SetMember[];
 	}
 
@@ -240,7 +232,7 @@ export function tokenize(pattern: string): RootNode {
 			advance();
 		}
 
-		const members: SetMember[] = [];
+		const members: (SetMember | OpSentinel)[] = [];
 		let rangeStart: number | null = null;
 		let awaitingRangeEnd = false;
 		let foundClosing = false;
@@ -331,7 +323,9 @@ export function tokenize(pattern: string): RootNode {
 							advance();
 							let propName = "";
 							while (!atEnd() && peek() !== "}") propName += advance();
-							if (!atEnd()) advance();
+							if (atEnd())
+								throw new ParseError(pattern, "Unterminated \\p{...} escape");
+							advance();
 							members.push({
 								kind: "unicode_property",
 								property: propName,
@@ -362,8 +356,13 @@ export function tokenize(pattern: string): RootNode {
 							) {
 								strings.pop();
 							}
-							if (!atEnd()) advance();
+							if (atEnd())
+								throw new ParseError(pattern, "Unterminated \\q{...} escape");
+							advance();
 							members.push({ kind: "string_member", strings, negated: false });
+						} else {
+							// \\q without { is an identity escape in non-v mode.
+							addEscapedChar(esc.codePointAt(0)!);
 						}
 						break;
 					}
@@ -388,7 +387,7 @@ export function tokenize(pattern: string): RootNode {
 				}
 				flushPending();
 				advance();
-				(members as any).push({ _op: c === "-" ? "subtract" : "intersect" });
+				members.push({ _op: c === "-" ? "subtract" : "intersect" });
 				hasSetOps = true;
 				prevWasEscapedDash = false;
 				continue;
@@ -499,6 +498,7 @@ export function tokenize(pattern: string): RootNode {
 		}
 		return { min, max };
 	}
+
 	/** Consumes a trailing `?` that marks the preceding quantifier as lazy. */
 	function consumeLazyFlag(): boolean {
 		if (!atEnd() && peek() === "?") {
@@ -507,7 +507,6 @@ export function tokenize(pattern: string): RootNode {
 		}
 		return true;
 	}
-
 
 	function applyQuantifier(min: number, max: number, column: number): void {
 		const branch = currentBranch();
@@ -562,7 +561,9 @@ export function tokenize(pattern: string): RootNode {
 							advance();
 							let propName = "";
 							while (!atEnd() && peek() !== "}") propName += advance();
-							if (!atEnd()) advance();
+							if (atEnd())
+								throw new ParseError(pattern, "Unterminated \\p{...} escape");
+							advance();
 							branch.push({
 								kind: "unicode_property",
 								property: propName,
@@ -578,7 +579,12 @@ export function tokenize(pattern: string): RootNode {
 							advance();
 							let name = "";
 							while (!atEnd() && peek() !== ">") name += advance();
-							if (!atEnd()) advance();
+							if (atEnd())
+								throw new ParseError(
+									pattern,
+									"Unterminated \\k<...> reference",
+								);
+							advance();
 							const ref: BackreferenceNode = {
 								kind: "backreference",
 								index: 0,

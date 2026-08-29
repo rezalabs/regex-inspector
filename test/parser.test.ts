@@ -376,6 +376,37 @@ describe("Parser; v-mode set operations", () => {
 	});
 });
 
+// ── v-mode set operation validation ────────────────────────────────
+
+describe("Parser; malformed set operations", () => {
+	it("throws on leading operator", () => {
+		assert.throws(() => tokenize("[--a]"), /Invalid set operation/);
+		assert.throws(() => tokenize("[&&a]"), /Invalid set operation/);
+	});
+
+	it("throws on trailing operator", () => {
+		assert.throws(() => tokenize("[a--]"), /Invalid set operation/);
+		assert.throws(() => tokenize("[a&&]"), /Invalid set operation/);
+	});
+
+	it("throws on adjacent operators", () => {
+		assert.throws(() => tokenize("[a&&--b]"), /Invalid set operation/);
+		assert.throws(() => tokenize("[a--&&b]"), /Invalid set operation/);
+	});
+
+	it("still parses a literal single & as a plain member", () => {
+		// [a&&&b]: the double && is an operator, the third & is a literal.
+		const ast = tokenize("[a&&&b]");
+		const set = ast.branches[0][0] as CharSetNode;
+		const op = set.members[0]!;
+		assert.equal(op.kind, "set_op");
+		if (op.kind === "set_op") {
+			assert.equal(op.operator, "intersect");
+			assert.equal(op.right.kind, "char");
+		}
+	});
+});
+
 // ── v-mode string members ───────────────────────────────────────────
 
 describe("Parser; v-mode string members", () => {
@@ -1292,5 +1323,42 @@ describe("Parser; errors", () => {
 				assert.equal(g1.branches[0].length, 3);
 			}
 		}
+	});
+});
+
+// ── Escape termination ─────────────────────────────────────────────
+
+describe("Parser; escape termination", () => {
+	it("treats \\q without { as identity escape (non-v semantics)", () => {
+		// Plain-mode JavaScript parses [\qz] as the class [qz]; v-mode would
+		// reject it, but the parser is flag-agnostic and keeps the non-v
+		// fallback, consistent with \p -> p and \k -> k.
+		const ast = tokenize(String.raw`[\qz]`);
+		const set = ast.branches[0][0] as CharSetNode;
+		assert.deepEqual(set.members, [
+			{ kind: "char", value: 113 }, // q
+			{ kind: "char", value: 122 }, // z
+		]);
+	});
+
+	it("throws on unterminated \\q{ inside class", () => {
+		assert.throws(() => tokenize(String.raw`[\q{abc`), /Unterminated/);
+	});
+
+	it("throws on unterminated \\p{ at top level", () => {
+		assert.throws(() => tokenize("\\p{L"), /Unterminated \\p\{\.\.\.\} escape/);
+	});
+
+	it("throws on unterminated \\p{ inside class", () => {
+		assert.throws(() => tokenize("[\\p{L"), /Unterminated/);
+	});
+
+	it("throws on unterminated \\k< even when the named group exists", () => {
+		// V8 rejects (?<foo>a)\k<foo as an invalid capture group name; the
+		// missing > must never quietly parse as a valid backreference.
+		assert.throws(
+			() => tokenize("(?<foo>a)\\k<foo"),
+			/Unterminated \\k<\.\.\.> reference/,
+		);
 	});
 });
