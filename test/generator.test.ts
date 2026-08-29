@@ -4,11 +4,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type {
+	BackreferenceNode,
 	CharSetNode,
 	GroupNode,
 	Node,
+	PositionNode,
 	RepetitionNode,
 	RootNode,
+	UnicodePropertyNode,
 } from "../src/ast.ts";
 import { generate } from "../src/generator.ts";
 import { tokenize } from "../src/parser.ts";
